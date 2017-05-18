@@ -8,6 +8,39 @@ Created on Wed May 17 19:27:01 2017
 
 import os
 
+
+def option_handler():
+    from optparse import OptionParser
+    
+    p = OptionParser()
+    
+    p.add_option(
+        '-p', '--path', 
+        help='search path', 
+        dest='path', 
+        action='store', 
+        defaul=os.getcwd()        
+    )
+    
+    p.add_option(
+        '-i', '--item',
+        help='word or phrase to search',
+        dest='item',
+        action='store',
+        default=None        
+    )
+    
+    p.add_option(
+        '-e', '--ext',
+        help='specify extension of file to search. defaults to all filtypes',
+        dest='ext',
+        action='store',
+        default=None        
+    )
+    
+    return p.parse_args()
+    
+
 class Searcher(object):
     """
     Starting at the directory provided, search recrusively through all files
@@ -25,6 +58,20 @@ class Searcher(object):
 
     """
     
+    ext_exclude = [
+        'git',
+        'pyc',
+        'pak',
+        'local',
+        'epub',
+        'db',
+        'markers',
+        'prefs',
+        'location',
+        'gdconnection',
+        
+    ]
+    
     def __init__(self, path=os.getcwd(), word=None, ext=None):
         self.word = word
         self.ext = ext
@@ -37,15 +84,17 @@ class Searcher(object):
             self.path = os.getcwd()  
             
         if self.word:
-            self.matches = self.lookup()
+            self.matches = self._lookup()
+            
+        self.write_path = self.path
             
 
     def __repr__(self):        
         return """There were {:,} matches for:
-    Path: {}
+    Path: {}/*
     Word: {}
     Ext: {}""".format(
-        len(self.matches) if self.matches else 0,
+        self.count if self.matches else 0,
         self.path,
         self.word,
         self.ext if self.ext else 'All Files'
@@ -68,11 +117,25 @@ class Searcher(object):
                     )
                         
     
-    def lookup(self):
+    def _ext_excluder(self, filename):
+        
+        if '.' in filename:
+            ext = filename.split('.')[-1]
+        else:
+            ext = filename
+            
+        return ext in Searcher.ext_exclude
+                        
+    
+    def _lookup(self):
         for dpath, dnames, fnames in os.walk(self.path):
 #            if 'venv' not in dpath:
             for fn in fnames:
-                if not fn in __file__:
+                ex = fn.split('.')[-1]
+                if not (
+                        fn in __file__ 
+                        or ex in Searcher.ext_exclude
+                        or 'venv' in dpath):
                     filepath = os.path.join(dpath, fn)
                     if self.ext:
                         if fn.endswith(self.ext):
@@ -86,22 +149,13 @@ class Searcher(object):
     def _match_string(self):
         string = '\n'
         term = string
-        for key, values in self.matches.items():
+        for key, values in sorted(self.matches.items()):
             string += '{}{}'.format(key, term)
             for num, line in values:
                 string += '  {}) {}{}'.format(num, line, term)
             string += term
             
         return string
-    
-    
-    def print_matches(self):
-        if len(self.matches) > 0:               
-            print self._match_string()
-            return ''
-            
-        else:
-            return self
     
     
     def _printer(self, path, idx=0):
@@ -126,6 +180,15 @@ class Searcher(object):
             print self
     
     
+    def print_matches(self):
+        if len(self.matches) > 0:               
+            print self._match_string()
+            return ''
+            
+        else:
+            return self
+    
+    
     def writer(self, path=os.getcwd(), filename='searcher'):
         
         if os.path.exists(path):
@@ -142,10 +205,11 @@ class Searcher(object):
 if __name__ == '__main__':
     
     search = Searcher(
-        path=os.getcwd(),
-        word='itinerary',
+        path='/Users/bjaus/Desktop',
+        word='affiliate',
         ext='.py'        
     )
     
     search.print_matches()
+#    search.print_matches()
 #    search.writer(path='/Users/bjaus/Desktop/SearcherTesting', filename=search.word)
