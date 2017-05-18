@@ -7,6 +7,7 @@ Created on Wed May 17 19:27:01 2017
 """
 
 import os
+from sys import exit
 
 
 def option_handler():
@@ -16,29 +17,37 @@ def option_handler():
     
     p.add_option(
         '-p', '--path', 
-        help='search path', 
+        help='directory to begin search, searches all directories below this.', 
         dest='path', 
         action='store', 
-        defaul=os.getcwd()        
+        default=os.getcwd()        
     )
     
     p.add_option(
-        '-i', '--item',
-        help='word or phrase to search',
-        dest='item',
+        '-s', '--search',
+        help='word or phrase to search for, this is MANDATORY!',
+        dest='term',
         action='store',
         default=None        
     )
     
     p.add_option(
         '-e', '--ext',
-        help='specify extension of file to search. defaults to all filtypes',
+        help='specify extension of file to search, defaults to all filtypes',
         dest='ext',
         action='store',
         default=None        
     )
     
-    return p.parse_args()
+    opts, args = p.parse_args()
+    
+    if opts.term is None:
+        print '\nA mandatory option is missing\n'
+        p.print_help()
+        print
+        exit(-1)
+    
+    return opts, args
     
 
 class Searcher(object):
@@ -72,8 +81,8 @@ class Searcher(object):
         
     ]
     
-    def __init__(self, path=os.getcwd(), word=None, ext=None):
-        self.word = word
+    def __init__(self, path=os.getcwd(), term=None, ext=None):
+        self.term = term
         self.ext = ext
         self.count = 0
         self.matches = dict()
@@ -83,7 +92,7 @@ class Searcher(object):
         else:
             self.path = os.getcwd()  
             
-        if self.word:
+        if self.term:
             self.matches = self._lookup()
             
         self.write_path = self.path
@@ -96,7 +105,7 @@ class Searcher(object):
     Ext: {}""".format(
         self.count if self.matches else 0,
         self.path,
-        self.word,
+        self.term,
         self.ext if self.ext else 'All Files'
     )
                 
@@ -104,7 +113,7 @@ class Searcher(object):
     def _file_reader(self, filepath):
         with open(filepath, 'r') as f:
             for num, line in enumerate(f.readlines()):
-                if self.word.lower() in line.lower():
+                if self.term.lower() in line.lower():
                     if not filepath in self.matches:
                         self.count += 1
                         self.matches[filepath] = []
@@ -201,15 +210,12 @@ class Searcher(object):
             self._printer(idx=1, path=path)
             
 
+    
+opts, args = option_handler()
 
-if __name__ == '__main__':
-    
-    search = Searcher(
-        path='/Users/bjaus/Desktop',
-        word='affiliate',
-        ext='.py'        
-    )
-    
-    search.print_matches()
-#    search.print_matches()
-#    search.writer(path='/Users/bjaus/Desktop/SearcherTesting', filename=search.word)
+search = Searcher(
+        path=opts.path,
+        term=opts.term,
+        ext=opts.ext)
+
+search.print_matches()
