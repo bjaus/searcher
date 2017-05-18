@@ -39,6 +39,14 @@ def option_handler():
         default=None        
     )
     
+    p.add_option(
+        '-x', '--exclude',
+        help='deactive built-in filetype exclusions when searching all filetypes, only applicable if -e is not specified.',
+        dest='excluder',
+        action='store_false',
+        default=True
+    )
+    
     opts, args = p.parse_args()
     
     if opts.term is None:
@@ -67,92 +75,81 @@ class Searcher(object):
 
     """
     
-    ext_exclude = [
-        'git',
-        'pyc',
-        'pak',
-        'local',
-        'epub',
-        'db',
-        'markers',
-        'prefs',
-        'location',
-        'gdconnection',
+    exclude = [
+        '.git',
+        '.pyc',
+        '.pak',
+        '.local',
+        '.epub',
+        '.db',
+        '.markers',
+        '.prefs',
+        '.location',
+        '.gdconnection',
+        'LICENSE',
+        'venv',
+        '.md',
         
     ]
     
-    def __init__(self, path=os.getcwd(), term=None, ext=None):
+    
+    def __init__(self, path, term, ext, excluder=True):
+        self.count = 0
         self.term = term
         self.ext = ext
-        self.count = 0
+        self.excluder = excluder
         self.matches = dict()
         
-        if os.path.exists(path):
-            self.path = path
-        else:
-            self.path = os.getcwd()  
+        while not os.path.exists(path):
+            print '\nPath does not exist: "{}"\n'.format(path)
+            path = raw_input('Enter new path ["q" to Quit]: ')
             
-        if self.term:
-            self.matches = self._lookup()
+            if path.lower() == 'q': exit(-2)
             
-        self.write_path = self.path
-            
+        self.path = path
+#        self.matches = self._lookup()
 
-    def __repr__(self):        
-        return """There were {:,} matches for:
-    Path: {}/*
-    Word: {}
-    Ext: {}""".format(
-        self.count if self.matches else 0,
-        self.path,
-        self.term,
-        self.ext if self.ext else 'All Files'
-    )
-                
+
+    def _inclusion(self, filename, filepath):
         
-    def _file_reader(self, filepath):
-        with open(filepath, 'r') as f:
-            for num, line in enumerate(f.readlines()):
-                if self.term.lower() in line.lower():
-                    if not filepath in self.matches:
-                        self.count += 1
-                        self.matches[filepath] = []
-                        
-                    self.matches[filepath].append(
-                        (
-                            num+1,
-                            line.strip()
-                        )        
-                    )
-                        
-    
-    def _ext_excluder(self, filename):
+        # Does not search in searcher.py itself
+        if filename in filepath:
+            return False
         
-        if '.' in filename:
-            ext = filename.split('.')[-1]
-        else:
-            ext = filename
+        elif self.excluder:
             
-        return ext in Searcher.ext_exclude
-                        
-    
+            test = sum([True if i in filepath else False for i in Searcher.exclude])
+            
+            if test > 0:
+                return False
+
+        return True
+
+
     def _lookup(self):
         for dpath, dnames, fnames in os.walk(self.path):
-#            if 'venv' not in dpath:
             for fn in fnames:
-                ex = fn.split('.')[-1]
-                if not (
-                        fn in __file__ 
-                        or ex in Searcher.ext_exclude
-                        or 'venv' in dpath):
-                    filepath = os.path.join(dpath, fn)
+                filepath = os.path.join(dpath, fn)
+                if self._inclusion(filename=fn, filepath=filepath):
                     if self.ext:
-                        if fn.endswith(self.ext):
-                            self._file_reader(filepath)
+                        if fn.lower().endswith(self.ext):
+                            self._reader(filepath)
                     else:
-                        self._file_reader(filepath)
-                        
+                        self._reader(filepath)
+
         return self.matches
+                
+                
+    def _reader(self, filepath):
+        with open(filepath, 'r') as f:
+            for num, line in enumerate(f.readlines()):
+                if self.term in line:
+                    if not filepath in self.matches:
+                        self.matches[filepath] = []
+                        
+                    self.matches[filepath].append((num+1, line.strip()))
+                    self.count += 1
+                        
     
     
     def _match_string(self):
@@ -175,18 +172,6 @@ class Searcher(object):
             print 'Neither {} or {} are valid paths. Try again.'.format(
                     path,
                     self.path)
-            
-            
-    def _write(self, filepath=os.path.join(os.getcwd(), 'searcher')):
-        
-        if len(self.matches) > 0:
-            
-            with open(filepath + '.txt', 'w') as f:
-                f.write(self._match_string())
-
-        else:
-            print '\nNothing to write because:'
-            print self
     
     
     def print_matches(self):
@@ -197,25 +182,15 @@ class Searcher(object):
         else:
             return self
     
-    
-    def writer(self, path=os.getcwd(), filename='searcher'):
-        
-        if os.path.exists(path):
-            self._printer(idx=0, path=path) 
-            self._write(filepath=os.path.join(path, filename))
-        elif os.path.exists(self.path):
-            self._printer(idx=0, path=self.path)
-            self._write(filepath=os.path.join(self.path, filename))
-        else:
-            self._printer(idx=1, path=path)
             
 
+if __name__ == '__main__':    
+    opts, args = option_handler()
     
-opts, args = option_handler()
-
-search = Searcher(
-        path=opts.path,
-        term=opts.term,
-        ext=opts.ext)
-
-search.print_matches()
+    search = Searcher(
+            path=opts.path,
+            term=opts.term,
+            ext=opts.ext,
+            excluder=opts.excluder)
+    
+    search.print_matches()
